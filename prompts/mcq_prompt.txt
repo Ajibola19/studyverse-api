@@ -4,6 +4,11 @@ Generate exactly {num_questions} multiple-choice questions based on the followin
 
 Only generate questions relevant to this topic if provided: {topic}
 
+CRITICAL RULES FOR OPTIONS (ANTI-LENGTH BIAS):
+1. All four options (a, b, c, d) must be of approximately equal length, sentence structure, and vocabulary complexity.
+2. Do not make the correct answer significantly longer, more descriptive, or more detailed than the incorrect choices. 
+3. Incorrect options (distractors) must be highly plausible, sophisticated, and match the technical depth of the correct answer perfectly. A student should never be able to guess the answer simply by looking for the most detailed or longest option.
+
 Each MCQ must follow this exact format:
 
 Q1. What is the question?
