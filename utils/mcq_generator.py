@@ -1,9 +1,9 @@
 import os
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
 from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
+
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -15,7 +15,7 @@ def generate_mcqs(summary_text, num_questions, topic=None):
     if not os.path.exists(prompt_path):
         raise FileNotFoundError(f"Prompt file not found at: {prompt_path}")
     
-    with open(prompt_path) as f:
+    with open(prompt_path, "r", encoding="utf-8") as f:
         template = f.read()
 
     prompt = PromptTemplate(
@@ -23,13 +23,19 @@ def generate_mcqs(summary_text, num_questions, topic=None):
         template=template,
     )
 
-    llm = ChatGroq(api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+    # Added temperature=0.3 to enforce strict adherence to equal option lengths
+    llm = ChatGroq(
+        api_key=GROQ_API_KEY, 
+        model_name="llama-3.3-70b-versatile",
+        temperature=0.3
+    )
+    
     chain = prompt | llm | StrOutputParser()
 
     result = chain.invoke({
         "context": summary_text,
         "num_questions": num_questions,
-        "topic": topic or ""
+        "topic": topic or "General"
     })
     
     return result
