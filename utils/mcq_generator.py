@@ -21,38 +21,25 @@ class MCQResponse(BaseModel):
     questions: List[Question]
 
 def generate_mcqs(summary_text, num_questions, topic=None):
-    model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
-
+    # Use active fast model string
     llm = ChatGroq(
         api_key=GROQ_API_KEY, 
-        model_name=model_name,
+        model_name="openai/gpt-oss-20b",  # Extremely fast, zero parsing errors
         temperature=0.2
     )
     
-    # Enable structured output using json_mode
-    structured_llm = llm.with_structured_output(MCQResponse, method="json_mode")
+    # Force LLM to adhere to structured JSON schema
+    structured_llm = llm.with_structured_output(MCQResponse)
     
-    # IMPORTANT: Groq requires the word "json" in the prompt when using json_mode
-    prompt = f"""You are an expert exam question creator. Your job is to output structured JSON data.
-
-Generate exactly {num_questions} multiple-choice questions based ONLY on the source text provided. Return the final output strictly as a JSON object matching the requested schema.
-
-Topic: {topic or 'General'}
-
-Source Text:
-{summary_text}
-"""
+    prompt = f"""
+    Generate {num_questions} multiple-choice questions based on the following text.
+    Topic: {topic or 'General'}
     
-    try:
-        response = structured_llm.invoke(prompt)
-        
-        # Unpack response
-        if response and hasattr(response, 'questions'):
-            return [q.model_dump() for q in response.questions]
-        elif isinstance(response, dict) and "questions" in response:
-            return response["questions"]
-        
-        return []
-    except Exception as e:
-        print(f"❌ Error during MCQ generation: {e}")
-        raise e
+    Source Text:
+    {summary_text}
+    """
+    
+    response = structured_llm.invoke(prompt)
+    
+    # Convert Pydantic objects directly to Python dicts for Flask
+    return [q.model_dump() for q in response.questions]
