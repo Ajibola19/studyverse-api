@@ -26,7 +26,7 @@ def generate_mcqs(summary_text, num_questions, topic=None):
     # Added temperature=0.3 to enforce strict adherence to equal option lengths
     llm = ChatGroq(
         api_key=GROQ_API_KEY, 
-        model_name="llama-3.3-70b-versatile",
+        model_name="llama-3.3-70b-specdec",
         temperature=0.3
     )
     
