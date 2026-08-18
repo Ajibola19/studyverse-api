@@ -23,7 +23,7 @@ def generate_mcqs(summary_text, num_questions, topic=None):
         template=template,
     )
 
-    llm = ChatGroq(api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+    llm = ChatGroq(api_key=GROQ_API_KEY, model_name="openai/gpt-oss-20b")
     chain = prompt | llm | StrOutputParser()
 
     result = chain.invoke({
