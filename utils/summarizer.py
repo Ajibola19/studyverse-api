@@ -9,7 +9,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 llm = ChatGroq(
     api_key=GROQ_API_KEY, 
-    model_name="llama-3.1-8b-instant",
+    model_name="openai/gpt-oss-20b",
     )
 
 def summarize_text(text):
