@@ -18,83 +18,62 @@ CORS(app)  # Enable CORS for PHP backend
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Rough token estimation (for Groq rate limit checking)
 def estimate_tokens(text):
     """Rough estimate: ~4 chars per token"""
     return len(text) // 4
 
 def parse_mcqs_from_text(mcqs_text):
     """
-    Parse MCQs from raw text output into structured objects.
-    Handles standard formats:
-    Q1. Question text?
-    a. Option A
-    b. Option B
-    c. Option C
-    d. Option D
-    Answer: b
+    Fallback parser: Parses raw text output into structured objects
+    if the generator returns text instead of dictionaries.
     """
     try:
         questions = []
         current_q = None
         
         lines = mcqs_text.split('\n')
-        print(f"\n📝 Parsing {len(lines)} lines of text...")
+        print(f"\n📝 Fallback Parsing {len(lines)} lines of text...")
         
         for line in lines:
             line = line.strip()
-            
             if not line:
                 continue
             
             # Match question headers (e.g., Q1., 1., Q50., 50.)
             if re.match(r'^Q?\d+[\.\)]', line, re.IGNORECASE):
-                # Save previous question if fully constructed
                 if current_q and 'question' in current_q and 'option_a' in current_q:
                     if all(k in current_q for k in ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option']):
                         questions.append(current_q)
-                        print(f"  ✅ Saved Q{len(questions)}: {current_q['question'][:50]}...")
                 
-                # Extract clean question text
                 question_text = re.sub(r'^Q?\d+[\.\)]\s*', '', line, flags=re.IGNORECASE).strip()
-                
                 current_q = {
                     'number': len(questions) + 1,
                     'question': question_text
                 }
-                print(f"  📌 Found Q{len(questions) + 1}: {question_text[:60]}...")
             
-            # Match option lines (a., b., c., d. or A), B), etc.)
+            # Match options
             elif re.match(r'^[a-dA-D][\.\):]\s*', line):
                 if current_q:
                     option_key = line[0].lower()
                     option_text = re.sub(r'^[a-dA-D][\.\):]\s*', '', line).strip()
-                    
                     if option_key in ['a', 'b', 'c', 'd']:
                         current_q[f'option_{option_key}'] = option_text
-                        print(f"    → Option {option_key.upper()}: {option_text[:50]}...")
             
-            # Match answer lines (Answer: b / Correct Answer: B)
+            # Match answers
             elif 'answer' in line.lower():
                 if current_q:
                     match = re.search(r'[:\s]+([a-dA-D])\b', line)
                     if match:
                         current_q['correct_option'] = match.group(1).upper()
-                        print(f"    → Correct answer: {match.group(1).upper()}")
         
-        # Save trailing final question
+        # Save last item
         if current_q and 'question' in current_q and 'option_a' in current_q:
             if all(k in current_q for k in ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option']):
                 questions.append(current_q)
-                print(f"  ✅ Saved Q{len(questions)}: {current_q['question'][:50]}...")
         
-        print(f"\n✅ Successfully parsed {len(questions)} complete questions")
         return questions
-    
     except Exception as e:
-        print(f"❌ Error parsing MCQs: {e}")
-        print(f"Raw output sample: {mcqs_text[:500]}")
-        traceback.print_exc()
+        print(f"❌ Error parsing raw text MCQs: {e}")
         return []
 
 @app.route("/api/health", methods=["GET"])
@@ -145,25 +124,38 @@ def generate_mcqs_api():
         
         print(f"✂️ Extracted {len(text)} characters from PDF")
         
-        # Summarize/prepare context
+        # Summarize context
         summary = summarize_text(text)
         print(f"\n🔍 SUMMARY ({len(summary)} chars):\n{summary[:300]}...")
         
-        # Generate MCQs with full summary context
+        # Generate MCQs
         mcqs_output = generate_mcqs(summary, num_questions, topic)
-        print(f"\n🧠 RAW MCQs OUTPUT:\n{str(mcqs_output)[:500]}...")
         
-        # Parse output
-        if isinstance(mcqs_output, str):
+        parsed_questions = []
+        
+        # Case A: mcqs_output is already a list of dicts/objects (Pydantic / Structured Output)
+        if isinstance(mcqs_output, list):
+            for i, q in enumerate(mcqs_output):
+                if isinstance(q, dict):
+                    q['number'] = q.get('number', i + 1)
+                    parsed_questions.append(q)
+        
+        # Case B: mcqs_output is a JSON string
+        elif isinstance(mcqs_output, str) and mcqs_output.strip().startswith('['):
+            try:
+                parsed_questions = json.loads(mcqs_output)
+            except Exception:
+                parsed_questions = parse_mcqs_from_text(mcqs_output)
+                
+        # Case C: mcqs_output is plain text -> use fallback regex parser
+        elif isinstance(mcqs_output, str):
             parsed_questions = parse_mcqs_from_text(mcqs_output)
-        else:
-            parsed_questions = mcqs_output if isinstance(mcqs_output, list) else []
         
         if not parsed_questions:
             print(f"⚠️ Warning: No questions parsed from output")
             return jsonify({
                 "error": "Failed to parse MCQs from API response.",
-                "suggestion": "Try requesting fewer questions or uploading a clearer PDF.",
+                "suggestion": "Try requesting fewer questions (e.g., 5 or 10) or uploading a clearer PDF.",
                 "raw_sample": str(mcqs_output)[:500]
             }), 500
         
@@ -174,8 +166,7 @@ def generate_mcqs_api():
             "filename": filename,
             "pdf_title": file.filename.replace('.pdf', ''),
             "num_questions": len(parsed_questions),
-            "questions": parsed_questions,
-            "raw_output": mcqs_output
+            "questions": parsed_questions
         }), 200
     
     except Exception as e:
@@ -183,7 +174,7 @@ def generate_mcqs_api():
         print(f"\n❌ ERROR: {error_msg}")
         print(traceback.format_exc())
         
-        if "rate_limit_exceeded" in error_msg.lower() or "413" in error_msg:
+        if "rate_limit_exceeded" in error_msg.lower() or "429" in error_msg:
             return jsonify({
                 "error": "API rate limit exceeded. Try requesting fewer questions or using a smaller PDF.",
                 "suggestion": "Reduce PDF size or number of questions"
