@@ -24,7 +24,7 @@ def generate_mcqs(summary_text, num_questions, topic=None):
     # Use active fast model string
     llm = ChatGroq(
         api_key=GROQ_API_KEY, 
-        model_name="llama-3.1-8b-instant",  # Extremely fast, zero parsing errors
+        model_name="openai/gpt-oss-20b",  # Extremely fast, zero parsing errors
         temperature=0.2
     )
     
