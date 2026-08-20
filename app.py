@@ -11,6 +11,7 @@ from datetime import datetime
 import re
 
 load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for PHP backend
@@ -182,9 +183,8 @@ def generate_mcqs_api():
         summary_tokens = estimate_tokens(summary)
         if summary_tokens > 8000:
             print(f"⚠️  Summary is large ({summary_tokens} tokens), truncating further...")
-            # Expanded limit from 3000 to 6000 to preserve enough context for 50 questions
-            summary = summary[:6000]
-            print(f"📝 Truncated summary to 6000 chars")
+            summary = summary[:3000]
+            print(f"📝 Truncated summary to 3000 chars")
         
         # Generate MCQs
         mcqs_output = generate_mcqs(summary, num_questions, topic)
