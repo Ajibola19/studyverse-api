@@ -1,21 +1,22 @@
 import os
+
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain_groq import ChatGroq
-from langchain_core.output_parsers import StrOutputParser
+
+from utils.ai_gateway import iter_text_candidates
+from utils.mcq_quality import evaluate_mcq_quality
+
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 
 def generate_mcqs(summary_text, num_questions, topic=None):
-    # Get the absolute path to the prompt file
     current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     prompt_path = os.path.join(current_dir, "prompts", "mcq_prompt.txt")
-    
+
     if not os.path.exists(prompt_path):
         raise FileNotFoundError(f"Prompt file not found at: {prompt_path}")
-    
-    with open(prompt_path) as f:
+
+    with open(prompt_path, encoding="utf-8") as f:
         template = f.read()
 
     prompt = PromptTemplate(
@@ -23,13 +24,57 @@ def generate_mcqs(summary_text, num_questions, topic=None):
         template=template,
     )
 
-    llm = ChatGroq(api_key=GROQ_API_KEY, model_name="openai/gpt-oss-20b")
-    chain = prompt | llm | StrOutputParser()
+    rendered_prompt = prompt.format(
+        context=summary_text,
+        num_questions=num_questions,
+        topic=topic or "",
+    )
 
-    result = chain.invoke({
-        "context": summary_text,
-        "num_questions": num_questions,
-        "topic": topic or ""
-    })
-    
-    return result
+    best_candidate = None
+    best_score = -1
+    failures = []
+
+    for candidate in iter_text_candidates(rendered_prompt):
+        raw_text = candidate["text"]
+        model = candidate["model"]
+
+        passed, score, reasons = evaluate_mcq_quality(
+            raw_text,
+            expected_questions=num_questions,
+        )
+
+        print(
+            f"🧪 MCQ quality from {model}: score={score}, "
+            f"passed={'yes' if passed else 'no'}"
+        )
+
+        if passed:
+            print(f"✅ Accepted MCQs from {model}")
+            return raw_text
+
+        failures.append(
+            f"{model}: score={score}; "
+            + "; ".join(reasons[:4])
+        )
+
+        if score > best_score:
+            best_score = score
+            best_candidate = raw_text
+
+        print(
+            f"⚠️ Rejected {model} output for quality; "
+            "trying the next available AI."
+        )
+
+    if best_candidate and best_score >= 65:
+        print(
+            "⚠️ No provider reached the strict MCQ threshold. "
+            f"Using best available candidate with score {best_score}."
+        )
+        return best_candidate
+
+    detail = " | ".join(failures[-5:]) if failures else "No AI provider returned usable text."
+    raise RuntimeError(
+        "All available AI providers failed or produced low-quality MCQs. "
+        + detail
+    )
