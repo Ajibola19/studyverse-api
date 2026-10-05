@@ -6,6 +6,7 @@ from flask_cors import CORS
 from utils.pdf_reader import extract_text_from_pdf
 from utils.summarizer import summarize_text
 from utils.mcq_generator import generate_mcqs
+from utils.queue_api import queue_api, start_queue_worker
 from dotenv import load_dotenv
 from datetime import datetime
 import re
@@ -15,6 +16,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for PHP backend
+app.register_blueprint(queue_api)
+start_queue_worker()
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -245,7 +248,9 @@ def test():
         "message": "Flask PDF MCQ API is working",
         "endpoints": {
             "health": "/api/health",
-            "generate_mcqs": "/api/generate-mcqs (POST with pdf_file, num_questions)"
+            "generate_mcqs": "/api/generate-mcqs (POST with pdf_file, num_questions)",
+            "generate_mcqs_queued": "/api/generate-mcqs-queued (POST)",
+            "job_status": "/api/jobs/<job_id> (GET)"
         }
     })
 
