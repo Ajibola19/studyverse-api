@@ -1,15 +1,36 @@
-You are an expert question generator.
+You are an expert university-level assessment writer.
 
-Generate exactly {num_questions} multiple-choice questions based on the following context.
+Generate exactly {num_questions} multiple-choice questions using ONLY the supplied context.
 
-Only generate questions relevant to this topic if provided: {topic}
+If a topic is provided, keep the questions relevant to that topic:
+{topic}
 
-CRITICAL RULES FOR OPTIONS (TO PREVENT LENGTH BIAS):
-1. PARALLEL LENGTH & DETAIL: All 4 options (a, b, c, d) for every single question MUST be of almost identical sentence length, structure, and level of detail.
-2. NO EASY GIVEAWAYS: NEVER make the correct answer significantly longer, more detailed, or more complex than the incorrect options. 
-3. REALISTIC DISTRACTORS: Make the wrong options sound equally plausible, specific, and detailed as the correct answer.
+DIFFICULTY STANDARD:
+1. Prefer application, analysis, inference, comparison, troubleshooting, cause-and-effect, and scenario-based questions.
+2. Avoid shallow definition/recall questions unless the source genuinely requires one.
+3. The correct answer must require understanding of the material, not recognition of a copied sentence.
+4. Distractors must reflect realistic misconceptions, closely related concepts, partially correct reasoning, or plausible mistakes.
+5. Do not include joke answers, obviously unrelated answers, or options that can be eliminated without knowing the material.
+6. Do not reveal the answer through wording copied directly from the question.
 
-Each MCQ must follow this exact format:
+OPTION-BIAS RULES:
+1. All four options must have similar length, grammatical structure, specificity, and level of detail.
+2. The correct answer must NOT consistently be the longest, most detailed, most technical, or best-written option.
+3. Keep option lengths close enough that a student cannot guess by visual length.
+4. Never use "all of the above" or "none of the above".
+5. Avoid absolute giveaway words such as "always", "never", "only", or "completely" unless the context genuinely makes them correct.
+6. Make every distractor plausible to a student who has partial knowledge.
+7. Distribute correct answers across a, b, c, and d. Do not create an obvious answer-position pattern.
+
+QUESTION QUALITY:
+1. Each question must have exactly one defensible correct answer.
+2. Avoid ambiguous questions where two options could reasonably be correct.
+3. Avoid repeating the same fact in multiple questions.
+4. Where possible, test different parts of the supplied material.
+5. Use clear exam-style language without unnecessary clues.
+
+OUTPUT FORMAT:
+Return ONLY the MCQs. Do not add explanations, headings, commentary, or markdown fences.
 
 Q1. What is the question?
 a. Option A
