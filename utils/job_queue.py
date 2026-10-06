@@ -46,6 +46,15 @@ def _queue_key():
     return "studyverse:mcq:queue"
 
 
+def queue_backend_ready():
+    """Return whether the shared Redis queue is configured and reachable."""
+    try:
+        _redis()
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+
 def enqueue_job(payload):
     client = _redis()
     job_id = f"quiz_{uuid.uuid4().hex[:12]}"
