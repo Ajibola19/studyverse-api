@@ -8,9 +8,8 @@ def _normalize(text):
 
 def _clean_line(line):
     line = str(line or "").strip()
-    line = re.sub(r"^[\\-•*]+\\s*", "", line)
-    line = line.replace("**", "").replace("__", "").replace("`", "")
-    return line.strip()
+    line = re.sub(r"^[\-•*]+\s*", "", line)
+    return line.replace("**", "").replace("__", "").replace("`", "").strip()
 
 
 def _parse_questions(raw_text):
@@ -22,7 +21,11 @@ def _parse_questions(raw_text):
         if not line:
             continue
 
-        question_match = re.match(r"^Q?(\d+)\.\s*(.+)$", line, re.IGNORECASE)
+        question_match = re.match(
+            r"^(?:Q(?:uestion)?\s*)?(\d+)\s*[\.\)\:\-]\s*(.+)$",
+            line,
+            re.IGNORECASE,
+        )
         if question_match:
             if current:
                 questions.append(current)
@@ -33,13 +36,19 @@ def _parse_questions(raw_text):
             }
             continue
 
-        option_match = re.match(r"^([a-dA-D])[\.)\:]\s*(.+)$", line)
+        option_match = re.match(
+            r"^(?:option\s*)?([a-dA-D])\s*[\.\)\:\-]\s*(.+)$",
+            line,
+            re.IGNORECASE,
+        )
         if option_match and current:
-            current["options"][option_match.group(1).upper()] = _normalize(option_match.group(2))
+            current["options"][option_match.group(1).upper()] = _normalize(
+                option_match.group(2)
+            )
             continue
 
         answer_match = re.match(
-            r"^(?:answer|correct answer|correct)\s*[:\-]?\s*([a-dA-D])\b",
+            r"^(?:answer|correct answer|correct)\s*[:\-]?\s*([a-dA-D])(?:[\.)])?\b",
             line,
             re.IGNORECASE,
         )
@@ -63,13 +72,17 @@ def _option_similarity(options):
     return max(pairs) if pairs else 0.0
 
 
-def evaluate_mcq_quality(raw_text, expected_questions):
-    """
-    Returns (passed, score, reasons).
+def count_complete_mcqs(raw_text):
+    questions = _parse_questions(raw_text)
+    return sum(
+        1
+        for q in questions
+        if set(q.get("options", {}).keys()) == {"A", "B", "C", "D"}
+        and q.get("answer") in {"A", "B", "C", "D"}
+    )
 
-    Score is 0-100. A response can still be used as a fallback when no provider
-    reaches the strict pass threshold.
-    """
+
+def evaluate_mcq_quality(raw_text, expected_questions):
     questions = _parse_questions(raw_text)
     reasons = []
     score = 100
@@ -78,7 +91,7 @@ def evaluate_mcq_quality(raw_text, expected_questions):
         reasons.append(
             f"expected {expected_questions} questions but parsed {len(questions)}"
         )
-        score -= min(35, abs(expected_questions - len(questions)) * 6)
+        score -= min(40, abs(expected_questions - len(questions)) * 8)
 
     longest_correct_count = 0
     analyzable = 0
@@ -90,12 +103,12 @@ def evaluate_mcq_quality(raw_text, expected_questions):
 
         if set(options.keys()) != {"A", "B", "C", "D"}:
             reasons.append(f"Q{index}: missing one or more options")
-            score -= 12
+            score -= 18
             continue
 
         if answer not in options:
             reasons.append(f"Q{index}: invalid or missing answer key")
-            score -= 12
+            score -= 18
             continue
 
         analyzable += 1
@@ -108,14 +121,16 @@ def evaluate_mcq_quality(raw_text, expected_questions):
         sorted_lengths = sorted(lengths.values())
         median_like = (sorted_lengths[1] + sorted_lengths[2]) / 2
 
-        if longest / shortest > 1.65:
+        # Length imbalance is a quality warning, not a reason to discard
+        # an otherwise complete quiz.
+        if longest / shortest > 2.0:
             reasons.append(f"Q{index}: option lengths are too uneven")
-            score -= 8
+            score -= 3
 
-        if correct_len == longest and correct_len > median_like * 1.25:
+        if correct_len == longest and correct_len > median_like * 1.5:
             longest_correct_count += 1
             reasons.append(f"Q{index}: correct answer is conspicuously longer")
-            score -= 9
+            score -= 4
         elif correct_len == longest:
             longest_correct_count += 1
 
@@ -124,48 +139,44 @@ def evaluate_mcq_quality(raw_text, expected_questions):
             reasons.append(f"Q{index}: duplicate options")
             score -= 15
 
-        if _option_similarity(options) > 0.92:
+        if _option_similarity(options) > 0.95:
             reasons.append(f"Q{index}: two options are almost duplicates")
-            score -= 7
+            score -= 6
 
         banned = ("all of the above", "none of the above")
         if any(any(term in opt.lower() for term in banned) for opt in options.values()):
             reasons.append(f"Q{index}: contains all/none-of-the-above shortcut")
-            score -= 5
-
-        if len(q.get("question", "").split()) < 5:
-            reasons.append(f"Q{index}: question is too shallow/short")
             score -= 4
+
+        if len(q.get("question", "").split()) < 4:
+            reasons.append(f"Q{index}: question is too shallow/short")
+            score -= 3
 
     if analyzable >= 4:
         ratio = longest_correct_count / analyzable
-        if ratio > 0.60:
+        if ratio > 0.70:
             reasons.append(
                 "the correct answer is the longest option too often across the set"
             )
-            score -= 15
+            score -= 7
 
         if len(set(repeated_answer_positions)) == 1:
             reasons.append("every correct answer uses the same option position")
-            score -= 12
+            score -= 10
         elif analyzable >= 8:
             max_position_share = max(
                 repeated_answer_positions.count(letter) for letter in "ABCD"
             ) / analyzable
-            if max_position_share > 0.55:
+            if max_position_share > 0.65:
                 reasons.append("correct-answer positions are too predictable")
-                score -= 7
+                score -= 5
 
     score = max(0, min(100, score))
+
     passed = (
-        len(questions) == expected_questions
-        and analyzable == expected_questions
-        and score >= 82
+        len(questions) >= expected_questions
+        and analyzable >= expected_questions
+        and score >= 70
     )
 
     return passed, score, reasons
-
-
-def count_complete_mcqs(raw_text):
-    questions = _parse_questions(raw_text)
-    return sum(1 for q in questions if set(q.get("options", {}).keys()) == {"A", "B", "C", "D"} and q.get("answer") in {"A", "B", "C", "D"})
