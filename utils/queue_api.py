@@ -104,17 +104,21 @@ def _process_job(payload):
     raw_output = generate_mcqs(summary, num_questions, topic)
     questions = _parse_mcqs(raw_output)
 
-    if len(questions) != num_questions:
+    if len(questions) < num_questions:
         raise RuntimeError(
-            f"AI returned {len(questions)} complete questions; "
+            f"AI returned only {len(questions)} complete questions; "
             f"{num_questions} were requested"
         )
+
+    # If a provider generates extra valid questions, keep only the number
+    # the user requested instead of failing the whole job.
+    questions = questions[:num_questions]
 
     return {
         "success": True,
         "filename": os.path.basename(file_path),
         "pdf_title": original_filename.rsplit(".", 1)[0],
-        "num_questions": len(questions),
+        "num_questions": num_questions,
         "questions": questions,
         "raw_output": raw_output,
     }
