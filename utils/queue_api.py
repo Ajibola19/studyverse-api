@@ -20,7 +20,7 @@ def _parse_mcqs(raw_text):
     current = None
 
     for raw_line in str(raw_text or "").splitlines():
-        line = raw_line.strip()
+        line = str(raw_line or "").strip()\n        line = re.sub(r"^[\\-•*]+\\s*", "", line)\n        line = line.replace("**", "").replace("__", "").replace("`", "")
         if not line:
             continue
 
