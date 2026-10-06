@@ -20,11 +20,18 @@ def _parse_mcqs(raw_text):
     current = None
 
     for raw_line in str(raw_text or "").splitlines():
-        line = str(raw_line or "").strip()\n        line = re.sub(r"^[\\-•*]+\\s*", "", line)\n        line = line.replace("**", "").replace("__", "").replace("`", "")
+        line = str(raw_line or "").strip()
+        line = re.sub(r"^[\\-•*]+\\s*", "", line)
+        line = line.replace("**", "").replace("__", "").replace("`", "")
+
         if not line:
             continue
 
-        match = re.match(r"^Q?(\d+)\.\s*(.+)$", line, re.IGNORECASE)
+        match = re.match(
+            r"^(?:Q(?:uestion)?\\s*)?(\\d+)\\s*[\\.\\)\\:\\-]\\s*(.+)$",
+            line,
+            re.IGNORECASE,
+        )
         if match:
             if current and all(
                 key in current
@@ -45,13 +52,17 @@ def _parse_mcqs(raw_text):
             }
             continue
 
-        option = re.match(r"^([a-dA-D])[\.)\:]\s*(.+)$", line)
+        option = re.match(
+            r"^(?:option\\s*)?([a-dA-D])\\s*[\\.\\)\\:\\-]\\s*(.+)$",
+            line,
+            re.IGNORECASE,
+        )
         if option and current:
             current[f"option_{option.group(1).lower()}"] = option.group(2).strip()
             continue
 
         answer = re.match(
-            r"^(?:answer|correct answer|correct)\s*[:\-]?\s*([a-dA-D])\b",
+            r"^(?:answer|correct answer|correct)\\s*[:\\-]?\\s*([a-dA-D])(?:[\\.)])?\\b",
             line,
             re.IGNORECASE,
         )
@@ -75,7 +86,6 @@ def _parse_mcqs(raw_text):
         question["number"] = index
 
     return questions
-
 
 def _process_job(payload):
     file_path = payload["file_path"]
