@@ -4,7 +4,12 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from utils.job_queue import enqueue_job, get_job, start_job_worker
+from utils.job_queue import (
+    enqueue_job,
+    get_job,
+    start_job_worker,
+    queue_backend_ready,
+)
 from utils.mcq_generator import generate_mcqs
 from utils.pdf_reader import extract_text_from_pdf
 from utils.summarizer import summarize_text
@@ -130,6 +135,13 @@ def start_queue_worker():
 
 @queue_api.route("/api/generate-mcqs-queued", methods=["POST"])
 def generate_mcqs_queued():
+    ready, queue_error = queue_backend_ready()
+    if not ready:
+        return jsonify({
+            "error": "Shared queue is not configured yet",
+            "details": queue_error,
+        }), 503
+
     if "pdf_file" not in request.files:
         return jsonify({"error": "No PDF file provided"}), 400
 
@@ -176,6 +188,13 @@ def generate_mcqs_queued():
 
 @queue_api.route("/api/jobs/<job_id>", methods=["GET"])
 def get_mcq_job(job_id):
+    ready, queue_error = queue_backend_ready()
+    if not ready:
+        return jsonify({
+            "error": "Shared queue is not configured yet",
+            "details": queue_error,
+        }), 503
+
     job = get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
