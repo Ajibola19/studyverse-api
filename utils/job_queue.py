@@ -49,6 +49,27 @@ def init_job_db():
         )
 
 
+def recover_interrupted_jobs():
+    """Requeue jobs that were processing when the Gunicorn worker died."""
+    init_job_db()
+    with _connect() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE mcq_jobs
+            SET status = 'queued',
+                error = 'Previous worker stopped before this job finished; retrying automatically.',
+                not_before = 0,
+                updated_at = ?
+            WHERE status = 'processing'
+            """,
+            (_now(),),
+        )
+        recovered = cursor.rowcount or 0
+
+    if recovered:
+        print(f"♻️ Requeued {recovered} interrupted MCQ job(s)")
+
+
 def enqueue_job(payload):
     init_job_db()
     job_id = f"quiz_{uuid.uuid4().hex[:12]}"
@@ -222,6 +243,7 @@ def start_job_worker(processor):
         _worker_started = True
 
     init_job_db()
+    recover_interrupted_jobs()
 
     def worker_loop():
         print("🧵 Studyverse MCQ queue worker started")
