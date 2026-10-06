@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 
 from utils.ai_gateway import iter_text_candidates
-from utils.mcq_quality import evaluate_mcq_quality
+from utils.mcq_quality import evaluate_mcq_quality, count_complete_mcqs
 
 load_dotenv()
 
@@ -66,10 +66,14 @@ def generate_mcqs(summary_text, num_questions, topic=None):
             "trying the next available AI."
         )
 
-    if best_candidate and best_score >= 65:
+    if (
+        best_candidate
+        and best_score >= 65
+        and count_complete_mcqs(best_candidate) == num_questions
+    ):
         print(
             "⚠️ No provider reached the strict MCQ threshold. "
-            f"Using best available candidate with score {best_score}."
+            f"Using best fully-parseable candidate with score {best_score}."
         )
         return best_candidate
 
