@@ -26,14 +26,14 @@ def _parse_mcqs(raw_text):
 
     for raw_line in str(raw_text or "").splitlines():
         line = str(raw_line or "").strip()
-        line = re.sub(r"^[\\-•*]+\\s*", "", line)
+        line = re.sub(r"^[\-•*]+\s*", "", line)
         line = line.replace("**", "").replace("__", "").replace("`", "")
 
         if not line:
             continue
 
         match = re.match(
-            r"^(?:Q(?:uestion)?\\s*)?(\\d+)\\s*[\\.\\)\\:\\-]\\s*(.+)$",
+            r"^(?:Q(?:uestion)?\s*)?(\d+)\s*[\.\)\:\-]\s*(.+)$",
             line,
             re.IGNORECASE,
         )
@@ -58,7 +58,7 @@ def _parse_mcqs(raw_text):
             continue
 
         option = re.match(
-            r"^(?:option\\s*)?([a-dA-D])\\s*[\\.\\)\\:\\-]\\s*(.+)$",
+            r"^(?:option\s*)?([a-dA-D])\s*[\.\)\:\-]\s*(.+)$",
             line,
             re.IGNORECASE,
         )
@@ -67,7 +67,7 @@ def _parse_mcqs(raw_text):
             continue
 
         answer = re.match(
-            r"^(?:answer|correct answer|correct)\\s*[:\\-]?\\s*([a-dA-D])(?:[\\.)])?\\b",
+            r"^(?:answer|correct answer|correct)\s*[:\-]?\s*([a-dA-D])(?:[\.)])?\b",
             line,
             re.IGNORECASE,
         )
