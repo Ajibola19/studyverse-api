@@ -232,9 +232,16 @@ def start_job_worker(processor):
             return
         _worker_started = True
 
-    # Fail fast during startup if Redis is not configured or unreachable.
-    _redis()
-    recover_interrupted_jobs()
+    # Do not crash the whole web service while Redis is still being provisioned.
+    # The worker will retry connecting until REDIS_URL is available/reachable.
+    while True:
+        try:
+            _redis()
+            recover_interrupted_jobs()
+            break
+        except Exception as exc:
+            print(f"⏳ Redis queue unavailable at startup: {exc}")
+            time.sleep(5)
 
     def worker_loop():
         print("🧵 Studyverse Redis MCQ queue worker started")
