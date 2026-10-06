@@ -57,7 +57,8 @@ def generate_mcqs(summary_text, num_questions, topic=None):
             + "; ".join(reasons[:4])
         )
 
-        if score > best_score:
+        complete_count = count_complete_mcqs(raw_text)
+        if complete_count >= num_questions and score > best_score:
             best_score = score
             best_candidate = raw_text
 
@@ -68,8 +69,8 @@ def generate_mcqs(summary_text, num_questions, topic=None):
 
     if (
         best_candidate
-        and best_score >= 65
-        and count_complete_mcqs(best_candidate) == num_questions
+        and best_score >= 50
+        and count_complete_mcqs(best_candidate) >= num_questions
     ):
         print(
             "⚠️ No provider reached the strict MCQ threshold. "
