@@ -6,12 +6,19 @@ def _normalize(text):
     return re.sub(r"\s+", " ", str(text or "").strip())
 
 
+def _clean_line(line):
+    line = str(line or "").strip()
+    line = re.sub(r"^[\\-•*]+\\s*", "", line)
+    line = line.replace("**", "").replace("__", "").replace("`", "")
+    return line.strip()
+
+
 def _parse_questions(raw_text):
     questions = []
     current = None
 
     for raw_line in str(raw_text or "").splitlines():
-        line = raw_line.strip()
+        line = _clean_line(raw_line)
         if not line:
             continue
 
@@ -157,3 +164,8 @@ def evaluate_mcq_quality(raw_text, expected_questions):
     )
 
     return passed, score, reasons
+
+
+def count_complete_mcqs(raw_text):
+    questions = _parse_questions(raw_text)
+    return sum(1 for q in questions if set(q.get("options", {}).keys()) == {"A", "B", "C", "D"} and q.get("answer") in {"A", "B", "C", "D"})
