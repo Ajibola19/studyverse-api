@@ -11,7 +11,7 @@ import redis
 REDIS_URL = os.getenv("REDIS_URL")
 POLL_INTERVAL_SECONDS = float(os.getenv("JOB_POLL_INTERVAL_SECONDS", "1.0"))
 TRANSIENT_RETRY_SECONDS = float(os.getenv("JOB_TRANSIENT_RETRY_SECONDS", "8.0"))
-JOB_TTL_SECONDS = int(os.getenv("JOB_TTL_SECONDS", "86400"))
+JOB_TTL_SECONDS = int(os.getenv("JOB_TTL_SECONDS", "2592000"))
 
 _worker_started = False
 _worker_lock = threading.Lock()
