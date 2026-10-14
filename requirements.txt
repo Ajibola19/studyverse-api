@@ -10,3 +10,5 @@ gunicorn==23.0.0
 transformers==4.53.0
 requests>=2.32.0
 redis==5.2.1
+
+PyMuPDF==1.26.4
