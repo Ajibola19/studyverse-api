@@ -2,6 +2,7 @@ import json
 import re
 from utils.ai_gateway import iter_text_candidates
 from utils.pdf_reader import extract_text_from_pdf
+import fitz
 
 DAYS = {"monday":1,"tuesday":2,"wednesday":3,"thursday":4,"friday":5,"saturday":6,"sunday":7}
 
@@ -34,12 +35,37 @@ def _parse_output(raw):
         if item not in items: items.append(item)
     return items
 
+def layout_text_from_pdf(path):
+    """Keep visual reading coordinates for mixed-department, multi-page timetable grids."""
+    doc=fitz.open(path)
+    sections=[]
+    active_day="UNKNOWN"
+    for page_no,page in enumerate(doc,1):
+        blocks=sorted(
+            (block for block in page.get_text("blocks") if len(block)>=5 and str(block[4]).strip()),
+            key=lambda b:(round(b[1]/10),b[0]),
+        )
+        lines=[]
+        for block in blocks:
+            raw=str(block[4]).strip()
+            day_match=re.search(r"\\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\\b",raw,re.I)
+            if day_match:
+                active_day=day_match.group(1).upper()
+            for piece in raw.splitlines():
+                piece=piece.strip()
+                if piece:
+                    lines.append(f"[day={active_day} page={page_no} x={round(block[0])} y={round(block[1])} x2={round(block[2])}] {piece}")
+        sections.append("\\n".join(lines))
+    doc.close()
+    return "\\n".join(sections)
+
+
 def extract_timetable_job(payload):
-    text=extract_text_from_pdf(payload["file_path"])
+    text=layout_text_from_pdf(payload["file_path"])
     if not text or len(text.strip())<25:
         raise ValueError("No selectable text found. Scanned PDFs need OCR and are not supported in this version.")
-    if len(text)>26000:
-        text=text[:26000]
+    if len(text)>42000:
+        raise ValueError("This timetable is too large for reliable AI extraction. Split the PDF into smaller timetables.")
     programme=payload["programme"]
     level=payload["level"]
     semester=payload["semester"]
@@ -49,14 +75,22 @@ Return ONLY valid JSON, no markdown, in this exact structure:
 Student programme: {programme}
 Student academic level: {level}
 Student semester: {semester}
+The document is a VISUAL GRID. Each line below includes its page, day and approximate horizontal (x) and vertical (y) positions. Text from separate cells may be interleaved in extracted reading order. Use x/y proximity and the TIMETABLE HEADER's time columns to match each course with the correct day and START/END TIME. Some pages begin with the continuation of the preceding day before the next day heading. A course may span multiple time columns. Never interpret "1.00am" in an afternoon slot as 1 AM; check the timetable's sequence. Shared modules such as GST/GET can belong to different departments and levels: select only the row explicitly labeled for the student's programme and level. Include ALL matching lectures across all pages, not merely the most obvious one.
 From the document, include ONLY classes that are clearly relevant to this student's programme AND level AND semester. Include shared/general courses only when marked as applying to that student. Do not guess missing days/times/course codes, do not infer a department from unrelated content. Convert times to 24-hour HH:MM; preserve local lecture times without timezone conversion. If uncertain, omit the entry. No more than 80 classes. Empty classes array if no confident matches.
 DOCUMENT:
 {text}"""
     errors=[]
-    for candidate in iter_text_candidates(prompt):
+    best=None
+    # Compare candidates rather than accepting the first valid but incomplete one.
+    for index,candidate in enumerate(iter_text_candidates(prompt)):
+        if index >= 3: break
         try:
             classes=_parse_output(candidate["text"])
-            return {"success":True,"classes":classes,"warning":"Review every extracted lecture before saving. AI can miss or misread timetable entries."}
+            if best is None or len(classes)>len(best):
+                best=classes
+            if len(classes)>=6: break
         except (ValueError,TypeError) as exc:
             errors.append(str(exc))
+    if best is not None:
+        return {"success":True,"classes":best,"warning":"AI timetable extraction is preliminary. Confirm all classes, especially shared courses and exact time columns, before saving.","possibly_incomplete":len(best)<3}
     raise RuntimeError("No AI provider returned a valid timetable. "+("; ".join(errors[-2:])))
