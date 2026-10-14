@@ -91,9 +91,15 @@ DOCUMENT:
             classes=_parse_output(candidate["text"])
             if best is None or len(classes)>len(best):
                 best=classes
-            if len(classes)>=6: break
+            # Do not stop at six rows: later providers may find missing shared courses.
         except (ValueError,TypeError) as exc:
             errors.append(str(exc))
     if best is not None:
-        return {"success":True,"classes":best,"warning":"AI timetable extraction is preliminary. Confirm all classes, especially shared courses and exact time columns, before saving.","possibly_incomplete":len(best)<3}
+        shared=any(re.match(r"^(?:BU[- ]?)?(?:GST|GED|GEDS|ENT|GET|MTH|PHY|CHM)",str(row.get("course_code","")).upper()) for row in best)
+        practical=any(re.search(r"PRACTICAL|WORKSHOP|LABORATORY|\\bLAB\\b",str(row.get("course_title","")),re.I) for row in best)
+        warnings=[]
+        if len(best)<6: warnings.append("Only a few lectures were identified; compare against the full PDF.")
+        if not shared: warnings.append("No general or shared courses found. Check GST/GED/GET/ENT and other shared lectures.")
+        if not practical: warnings.append("No practical/workshop identified. Check if one applies to your level.")
+        return {"success":True,"classes":best,"warning":" ".join(warnings) or "Verify every lecture and its group against the original timetable.","possibly_incomplete":bool(warnings)}
     raise RuntimeError("No AI provider returned a valid timetable. "+("; ".join(errors[-2:])))
