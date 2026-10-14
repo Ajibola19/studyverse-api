@@ -218,9 +218,11 @@ def extract_timetable_queued():
     programme = str(request.form.get("programme", "")).strip()
     level = str(request.form.get("level", "")).strip()
     semester = str(request.form.get("semester", "")).strip()
+    student_group = str(request.form.get("student_group", "")).strip()
     if not (3 <= len(programme) <= 120 and re.fullmatch(r"[\w &(),./-]+", programme, re.UNICODE)
             and level in {"100","200","300","400","500","600","700"}
-            and semester in {"1","2"}):
+            and semester in {"1","2"} and len(student_group)<=40
+            and (not student_group or re.fullmatch(r"[A-Za-z0-9 _.-]+", student_group))):
         return jsonify({"error": "Enter your programme, level and semester."}), 400
     file.seek(0, 2)
     length = file.tell()
@@ -235,7 +237,7 @@ def extract_timetable_queued():
     file.save(path)
     try:
         job_id = enqueue_job({"task": "timetable_extraction", "file_path": path,
-                              "programme": programme, "level": level, "semester": semester})
+                              "programme": programme, "level": level, "semester": semester, "student_group": student_group})
     except Exception:
         os.remove(path)
         raise
