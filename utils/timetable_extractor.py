@@ -48,16 +48,16 @@ def layout_text_from_pdf(path):
         lines=[]
         for block in blocks:
             raw=str(block[4]).strip()
-            day_match=re.search(r"\\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\\b",raw,re.I)
+            day_match=re.search(r"\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\b",raw,re.I)
             if day_match:
                 active_day=day_match.group(1).upper()
             for piece in raw.splitlines():
                 piece=piece.strip()
                 if piece:
                     lines.append(f"[day={active_day} page={page_no} x={round(block[0])} y={round(block[1])} x2={round(block[2])}] {piece}")
-        sections.append("\\n".join(lines))
+        sections.append("\n".join(lines))
     doc.close()
-    return "\\n".join(sections)
+    return "\n".join(sections)
 
 
 def extract_timetable_job(payload):
